@@ -46,7 +46,7 @@ class E2E(unittest.TestCase):
     def test_ping(self):
         r = self.get('/v1/ping')
         eq_(r.status_code, 200)
-        eq_(r.content, 'pong\n')
+        eq_(r.content, b'pong\n')
         eq_(r.headers['Access-Control-Allow-Origin'], '*')
 
     def test_404(self):
@@ -511,7 +511,7 @@ class E2E(unittest.TestCase):
         r = self.get('/v1/stats', headers={'Auth-Key': 'xyz123'})
         eq_(r.status_code, 200)
         stats = r.json()
-        ok_(stats['fetches'].values()[0])
+        ok_(list(stats['fetches'].values())[0])
 
         r = self.delete('/v1/flush')
         eq_(r.status_code, 403)
@@ -521,7 +521,7 @@ class E2E(unittest.TestCase):
         eq_(r.status_code, 200)
         stats = r.json()
         eq_(stats['documents'], 0)
-        ok_(stats['fetches'].values()[0])
+        ok_(list(stats['fetches'].values())[0])
 
         r = self.get('/v1?q=blo&d=peterbecom')
         eq_(r.status_code, 200)
