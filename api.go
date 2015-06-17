@@ -23,9 +23,9 @@ func encodeString(str string) string {
 	return base64.URLEncoding.EncodeToString(h.Sum(nil))[0:6]
 }
 
-// With this we can remove all apostraphes that are used like
+// With this we can remove all apostrophes that are used like
 // quotation marks. E.g. "The 'one' word" or "'One' is a word".
-// However, we'll want to keep apostraphes when they're in a word
+// However, we'll want to keep apostrophes when they're in a word
 // like "they're" or "there's" or "o'clock" as if it's 1 word.
 var quotationMarksRegex = regexp.MustCompile(`\B'|'\B`)
 
@@ -73,6 +73,7 @@ func pingHandler(w http.ResponseWriter, req *http.Request) {
 type updateForm struct {
 	URL        string
 	Title      string
+	ItemType   string
 	Group      string
 	Popularity float64
 }
@@ -87,6 +88,10 @@ func (f *updateForm) FieldMap() binding.FieldMap {
 			Form:     "title",
 			Required: true,
 		},
+		&f.ItemType: binding.Field{
+			Form:     "item_type",
+			Required: true,
+		},
 		&f.Group:      "group",
 		&f.Popularity: "popularity",
 	}
@@ -96,6 +101,13 @@ func (f updateForm) Validate(req *http.Request, errs binding.Errors) binding.Err
 	if strings.Trim(f.Title, " ") == "" {
 		errs = append(errs, binding.Error{
 			FieldNames:     []string{"title"},
+			Classification: "ComplaintError",
+			Message:        "Can't be empty",
+		})
+	}
+	if strings.Trim(f.ItemType, " ") == "" {
+		errs = append(errs, binding.Error{
+			FieldNames:     []string{"item_type"},
 			Classification: "ComplaintError",
 			Message:        "Can't be empty",
 		})
@@ -123,6 +135,7 @@ func updateHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	form.Title = strings.Trim(form.Title, " ")
+	form.ItemType = strings.Trim(form.ItemType, " ")
 	form.URL = strings.Trim(form.URL, " ")
 	// group := form.Group
 
@@ -140,6 +153,7 @@ func updateHandler(w http.ResponseWriter, req *http.Request) {
 	insertDocument(
 		domain,
 		form.Title,
+		form.ItemType,
 		form.URL,
 		form.Group,
 		form.Popularity,
@@ -150,7 +164,7 @@ func updateHandler(w http.ResponseWriter, req *http.Request) {
 	renderer.JSON(w, http.StatusCreated, output)
 }
 
-func insertDocument(domain, title, url, group string, popularity float64, c *redis.Client) {
+func insertDocument(domain, title, itemType, url, group string, popularity float64, c *redis.Client) {
 	encoded := encodeString(domain)
 	encodedURL := encodeString(url)
 
@@ -173,6 +187,7 @@ func insertDocument(domain, title, url, group string, popularity float64, c *red
 		pipedCommands++
 	}
 	c.Append("HSET", encoded+"$titles", encodedURL, title)
+	c.Append("HSET", encoded+"$itemTypes", encodedURL, itemType)
 	pipedCommands++
 	c.Append("HSET", encoded+"$urls", encodedURL, url)
 	pipedCommands++
@@ -191,6 +206,7 @@ type bulkDocuments struct {
 type bulkDocument struct {
 	URL        string  `json:"url"`
 	Title      string  `json:"title"`
+	ItemType   string  `json:"item_type"`
 	Popularity float64 `json:"popularity"`
 	Group      string  `json:"group"`
 }
@@ -223,6 +239,7 @@ func bulkHandler(w http.ResponseWriter, req *http.Request) {
 		insertDocument(
 			domain,
 			b.Title,
+			b.ItemType,
 			b.URL,
 			b.Group,
 			b.Popularity,
@@ -497,18 +514,23 @@ func fetchHandler(w http.ResponseWriter, req *http.Request) {
 
 	var titles []string
 	var urls []string
+	var itemTypes []string
+
 	if len(encodedUrls) == 0 {
 	} else {
 		titles, err = c.Cmd("HMGET", encoded+"$titles", encodedUrls).List()
+		errorHandler(err)
+		itemTypes, err = c.Cmd("HMGET", encoded+"$itemTypes", encodedUrls).List()
 		errorHandler(err)
 		urls, err = c.Cmd("HMGET", encoded+"$urls", encodedUrls).List()
 		errorHandler(err)
 	}
 	rows := make([]interface{}, len(titles))
 	for i, title := range titles {
-		row := make([]string, 2)
+		row := make([]string, 3)
 		row[0] = urls[i]
 		row[1] = title
+		row[2] = itemTypes[i]
 		rows[i] = row
 	}
 	rows = rows[:len(titles)]

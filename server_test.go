@@ -65,6 +65,7 @@ type Response struct {
 func (suite *HandlerSuite) TestUpdateAndFetch() {
 	form := url.Values{}
 	form.Add("title", "Some blog title")
+	form.Add("item_type", "blog")
 	form.Add("url", "/some/page")
 	request, err := http.NewRequest("POST", "/v1", strings.NewReader(form.Encode()))
 	if err != nil {
@@ -106,6 +107,7 @@ func (suite *HandlerSuite) TestUpdateAndFetch() {
 func (suite *HandlerSuite) TestUpdateAndDelete() {
 	form := url.Values{}
 	form.Add("title", "Some blog title")
+	form.Add("item_type", "blog")
 	form.Add("url", "/some/page")
 	request, err := http.NewRequest("POST", "/v1", strings.NewReader(form.Encode()))
 	if err != nil {
